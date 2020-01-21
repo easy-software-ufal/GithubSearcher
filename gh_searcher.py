@@ -1,5 +1,6 @@
 import requests
 import argparse
+import json
 
 parser = argparse.ArgumentParser(description='Specify the query parameters.')
 parser.add_argument('-lang', '--language', help='The language to be queried.')
@@ -10,6 +11,7 @@ args = parser.parse_args()
 
 api_url =  'https://api.github.com/search/repositories'
 page = 1
+data = {}
 
 if (args.language != None) and (args.min_stars != None):
     api_url += '?q=language:' + str(args.language) + '+stars:>=' + str(args.min_stars)
@@ -23,23 +25,22 @@ if args.language or args.min_stars:
 else:
     api_url += '?q=sort:true&page='
 
-f = open('java_repositories.txt', 'w')
-
 repos = []
 
 while True:
     request_url = api_url + str(page)
-    print(request_url)
+    print('Searching for ' + request_url)
     request = requests.get(request_url, params=[], auth=(args.username, args.auth_token))
     if request.status_code == 200:
         repositories = request.json()
         if repositories:
             for item in repositories['items']:
                 if item['description'] != None:
-                    repos.append([item['stargazers_count'], item['full_name'] + ' | ' + item['description']])  
+                    repos.append([item['stargazers_count'], item['full_name'], item['description'], item['html_url']])  
                 else:
-                    repos.append([item['stargazers_count'], item['full_name'] + ' | No description available'])  
+                    repos.append([item['stargazers_count'], item['full_name'], 'No description available', item['html_url']])
             page += 1
+            print('Done in the page ' + str(page))
         else:
             print('Empty JSON')
             break
@@ -47,8 +48,21 @@ while True:
         print('Status code = ' + str(request.status_code))
         break
 
+print('Sorting results...')
+
 sorted_repos = sorted(repos, reverse=True)
-print(sorted(repos, reverse=True))
+
 for item in sorted_repos:
-    f.write(item[1] + '\n')
-    
+    data[item[1]] = []
+    data[item[1]].append({
+        'stars': item[0],
+        'description': item[2],
+        'link': item[3]
+    })
+
+print('Printing JSON file...')
+
+with open('outfile.json', 'w') as outfile:
+    json.dump(data, outfile, indent=2)
+
+print('Done!')
